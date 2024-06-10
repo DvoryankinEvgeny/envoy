@@ -146,6 +146,7 @@ public:
   std::chrono::seconds defaultRefreshTokenExpiresIn() const {
     return default_refresh_token_expires_in_;
   }
+  bool preserveAuthorizationHeader() const { return preserve_authorization_header_; }
 
 private:
   static FilterStats generateStats(const std::string& prefix, Stats::Scope& scope);
@@ -171,6 +172,7 @@ private:
   const bool use_refresh_token_{};
   const std::chrono::seconds default_expires_in_;
   const std::chrono::seconds default_refresh_token_expires_in_;
+  const bool preserve_authorization_header_;
 };
 
 using FilterConfigSharedPtr = std::shared_ptr<FilterConfig>;

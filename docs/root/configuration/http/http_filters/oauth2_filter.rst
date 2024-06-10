@@ -38,6 +38,15 @@ is set to true the filter will send over a
 cookie named ``BearerToken`` to the upstream. Additionally, the ``Authorization`` header will be populated
 with the same value.
 
+However, if :ref:`preserve_authorization_header <envoy_v3_api_field_extensions.filters.http.oauth2.v3.OAuth2Config.preserve_authorization_header>` 
+is set to true the filter will not modify the ``Authorization`` header and will send it to the upstream as is.
+
+Please keep in mind that only one of the options
+:ref:`forward_bearer_token <envoy_v3_api_field_extensions.filters.http.oauth2.v3.OAuth2Config.forward_bearer_token>`
+and
+:ref:`preserve_authorization_header <envoy_v3_api_field_extensions.filters.http.oauth2.v3.OAuth2Config.preserve_authorization_header>`
+can be presented in the config at a time.
+
 The OAuth filter encodes URLs in query parameters using the
 `URL encoding algorithm. <https://www.w3.org/TR/html5/forms.html#application/x-www-form-urlencoded-encoding-algorithm>`_
 

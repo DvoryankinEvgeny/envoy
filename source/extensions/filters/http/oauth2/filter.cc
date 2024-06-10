@@ -205,7 +205,8 @@ FilterConfig::FilterConfig(
       use_refresh_token_(proto_config.use_refresh_token().value()),
       default_expires_in_(PROTOBUF_GET_SECONDS_OR_DEFAULT(proto_config, default_expires_in, 0)),
       default_refresh_token_expires_in_(
-          PROTOBUF_GET_SECONDS_OR_DEFAULT(proto_config, default_refresh_token_expires_in, 604800)) {
+          PROTOBUF_GET_SECONDS_OR_DEFAULT(proto_config, default_refresh_token_expires_in, 604800)),
+      preserve_authorization_header_(proto_config.preserve_authorization_header()) {
   if (!context.clusterManager().clusters().hasCluster(oauth_token_endpoint_.cluster())) {
     throw EnvoyException(fmt::format("OAuth2 filter: unknown cluster '{}' in config. Please "
                                      "specify which cluster to direct OAuth requests to.",
@@ -289,10 +290,12 @@ Http::FilterHeadersStatus OAuth2Filter::decodeHeaders(Http::RequestHeaderMap& he
     }
   }
 
-  // Sanitize the Authorization header, since we have no way to validate its content. Also,
-  // if token forwarding is enabled, this header will be set based on what is on the HMAC cookie
-  // before forwarding the request upstream.
-  headers.removeInline(authorization_handle.handle());
+  if (!config_->preserveAuthorizationHeader()) {
+    // Sanitize the Authorization header, since we have no way to validate its content and we don't
+    // want to preserve it either. Also, if token forwarding is enabled, this header will be set
+    // based on what is on the HMAC cookie before forwarding the request upstream.
+    headers.removeInline(authorization_handle.handle());
+  }
 
   // The following 2 headers are guaranteed for regular requests. The asserts are helpful when
   // writing test code to not forget these important variables in mock requests

@@ -2646,6 +2646,66 @@ TEST_F(OAuth2Test, OAuthTestSetCookiesAfterRefreshAccessTokenWithBasicAuth) {
   EXPECT_EQ(cookies.at("RefreshToken"), "refreshToken");
 }
 
+TEST_F(OAuth2Test, OAuthTestPreserveAuthorizationHeader) {
+  // Set up proto fields
+  envoy::extensions::filters::http::oauth2::v3::OAuth2Config p;
+  auto* endpoint = p.mutable_token_endpoint();
+  endpoint->set_cluster("auth.example.com");
+  endpoint->set_uri("auth.example.com/_oauth");
+  endpoint->mutable_timeout()->set_seconds(1);
+  p.set_redirect_uri("%REQ(:scheme)%://%REQ(:authority)%" + TEST_CALLBACK);
+  p.mutable_redirect_path_matcher()->mutable_path()->set_exact(TEST_CALLBACK);
+  p.set_authorization_endpoint("https://auth.example.com/oauth/authorize/");
+  p.mutable_signout_path()->mutable_path()->set_exact("/_signout");
+  p.set_preserve_authorization_header(true);
+  auto* matcher = p.add_pass_through_matcher();
+  matcher->set_name(":method");
+  matcher->mutable_string_match()->set_exact("OPTIONS");
+
+  auto credentials = p.mutable_credentials();
+  credentials->set_client_id(TEST_CLIENT_ID);
+  credentials->mutable_token_secret()->set_name("secret");
+  credentials->mutable_hmac_secret()->set_name("hmac");
+
+  MessageUtil::validate(p, ProtobufMessage::getStrictValidationVisitor());
+
+  // Create the OAuth config.
+  auto secret_reader = std::make_shared<MockSecretReader>();
+  FilterConfigSharedPtr test_config = std::make_shared<FilterConfig>(
+      p, factory_context_.server_factory_context_, secret_reader, scope_, "test.");
+
+  // Recreate the filter with current config and test if the Authorization header stayed as is
+  init(test_config);
+
+  const std::string auth_token = "Bearer auth token";
+
+  Http::TestRequestHeaderMapImpl mock_request_headers{
+      {Http::Headers::get().Path.get(), "/anypath"},
+      {Http::Headers::get().Host.get(), "traffic.example.com"},
+      {Http::Headers::get().Method.get(), Http::Headers::get().MethodValues.Get},
+      {Http::Headers::get().Scheme.get(), "https"},
+      {Http::CustomHeaders::get().Authorization.get(), auth_token},
+  };
+
+  Http::TestRequestHeaderMapImpl expected_headers{
+      {Http::Headers::get().Path.get(), "/anypath"},
+      {Http::Headers::get().Host.get(), "traffic.example.com"},
+      {Http::Headers::get().Method.get(), Http::Headers::get().MethodValues.Get},
+      {Http::Headers::get().Scheme.get(), "https"},
+      {Http::CustomHeaders::get().Authorization.get(), auth_token},
+  };
+
+  // cookie-validation mocking
+  EXPECT_CALL(*validator_, setParams(_, _));
+  EXPECT_CALL(*validator_, isValid()).WillOnce(Return(true));
+
+  EXPECT_EQ(Http::FilterHeadersStatus::Continue,
+            filter_->decodeHeaders(mock_request_headers, false));
+
+  // Ensure that existing OAuth forwarded headers got sanitized.
+  EXPECT_EQ(mock_request_headers, expected_headers);
+}
+
 } // namespace Oauth2
 } // namespace HttpFilters
 } // namespace Extensions

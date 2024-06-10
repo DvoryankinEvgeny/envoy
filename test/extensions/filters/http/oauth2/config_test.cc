@@ -201,6 +201,46 @@ config:
       EnvoyException, "value does not match regex pattern");
 }
 
+TEST(ConfigTest, BothOAuthTokenBehaviorsAreInTheConfig) {
+  const std::string yaml = R"EOF(
+config:
+  token_endpoint:
+    cluster: foo
+    uri: oauth.com/token
+    timeout: 3s
+  credentials:
+    client_id: "secret"
+    token_secret:
+      name: token
+    hmac_secret:
+      name: hmac
+    cookie_names:
+      bearer_token: "?"
+  authorization_endpoint: https://oauth.com/oauth/authorize/
+  redirect_uri: "%REQ(x-forwarded-proto)%://%REQ(:authority)%/callback"
+  preserve_authorization_header: false
+  forward_bearer_token: false
+  redirect_path_matcher:
+    path:
+      exact: /callback
+  signout_path:
+    path:
+      exact: /signout
+  auth_scopes:
+  - user
+  - openid
+  - email
+  resources:
+  - oauth2-resource
+  - http://example.com
+  - https://example.com
+    )EOF";
+
+  OAuth2Config factory;
+  ProtobufTypes::MessagePtr proto_config = factory.createEmptyConfigProto();
+  EXPECT_THROW(TestUtility::loadFromYaml(yaml, *proto_config), EnvoyException);
+}
+
 } // namespace Oauth2
 } // namespace HttpFilters
 } // namespace Extensions
